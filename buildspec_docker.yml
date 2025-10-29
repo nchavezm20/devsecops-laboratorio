@@ -26,12 +26,12 @@ phases:
       - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG 091512052243.dkr.ecr.$AWS_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
 
       - echo "🔍 Instalando Trivy correctamente..."
-      - mkdir -p /usr/local/bin
-      - curl -sL https://github.com/aquasecurity/trivy/releases/latest/download/trivy_Linux-64bit.tar.gz -o trivy.tar.gz
-      - tar zxvf trivy.tar.gz
-      - mv trivy /usr/local/bin/
-      - chmod +x /usr/local/bin/trivy
-      - trivy --version
+      - mkdir -p ./bin
+      - curl -sL https://github.com/aquasecurity/trivy/releases/download/v0.52.2/trivy_0.52.2_Linux-64bit.tar.gz -o trivy.tar.gz
+      - tar zxvf trivy.tar.gz -C ./bin
+      - chmod +x ./bin/trivy
+      - export PATH=$PATH:$(pwd)/bin
+      - ./bin/trivy --version
 
       - echo "🚀 Ejecutando escaneo con Trivy..."
       - trivy image --exit-code 0 --severity MEDIUM,HIGH,CRITICAL --format table $IMAGE_REPO_NAME:$IMAGE_TAG > trivy-report.txt
