@@ -5,44 +5,42 @@ phases:
     runtime-versions:
       nodejs: 18
     commands:
-      - echo "📦 Instalando Snyk CLI..."
+      - echo "Instalando Snyk CLI..."
       - npm install -g snyk
-      - echo "🔑 Obteniendo token SNYK desde Parameter Store"
+      - echo "Obteniendo token SNYK desde Parameter Store"
       - export SNYK_TOKEN=$(aws ssm get-parameter --name SNYK_TOKEN --with-decryption --query "Parameter.Value" --output text)
       - snyk auth $SNYK_TOKEN
 
   build:
     commands:
-      - echo "🚀 Ejecutando Snyk (salida JSON guardada)..."
+      - echo "Ejecutando Snyk (salida JSON guardada)..."
       - mkdir -p reports
-      # Genera JSON (snyk retorna exit>0 si encuentra issues, por eso usamos || true para que el script continue y capture el JSON)
       - snyk test --json > reports/snyk.json 2>/dev/null || true
+      - |
+        echo "Analizando resultados..."
+        CRITICAL=$(jq '[.vulnerabilities[] | select(.severity=="critical")] | length' reports/snyk.json)
+        HIGH=$(jq '[.vulnerabilities[] | select(.severity=="high")] | length' reports/snyk.json)
+        MEDIUM=$(jq '[.vulnerabilities[] | select(.severity=="medium")] | length' reports/snyk.json)
+        TOTAL=$(jq '.vulnerabilities | length' reports/snyk.json)
 
-      # Contar por severidad (usa jq)
-      - CRITICAL=$(jq '[.vulnerabilities[] | select(.severity=="critical")] | length' reports/snyk.json)
-      - HIGH=$(jq '[.vulnerabilities[] | select(.severity=="high")] | length' reports/snyk.json)
-      - MEDIUM=$(jq '[.vulnerabilities[] | select(.severity=="medium")] | length' reports/snyk.json)
-      - TOTAL=$(jq '.vulnerabilities | length' reports/snyk.json)
+        echo "Snyk summary:" > reports/snyk-summary.log
+        echo "TOTAL vulnerabilities: $TOTAL" >> reports/snyk-summary.log
+        echo "CRITICAL: $CRITICAL" >> reports/snyk-summary.log
+        echo "HIGH: $HIGH" >> reports/snyk-summary.log
+        echo "MEDIUM: $MEDIUM" >> reports/snyk-summary.log
+        cat reports/snyk-summary.log
 
-      # Escribir resumen legible
-      - echo "Snyk summary:" > reports/snyk-summary.log
-      - echo "TOTAL vulnerabilities: $TOTAL" >> reports/snyk-summary.log
-      - echo "CRITICAL: $CRITICAL" >> reports/snyk-summary.log
-      - echo "HIGH: $HIGH" >> reports/snyk-summary.log
-      - echo "MEDIUM: $MEDIUM" >> reports/snyk-summary.log
-      - cat reports/snyk-summary.log
-
-      # Política: fallar si hay medium o superior
-      - if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ] || [ "$MEDIUM" -gt 0 ]; then
-          echo "❌ Vulnerabilidades MEDIUM+ detectadas. Fallando pipeline."; exit 1;
+        if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ] || [ "$MEDIUM" -gt 0 ]; then
+          echo "❌ Vulnerabilidades MEDIUM+ detectadas. Fallando pipeline.";
+          exit 1;
         else
           echo "✅ No se detectaron vulnerabilidades MEDIUM o superiores.";
         fi
 
   post_build:
     commands:
-      - echo "post_build: (si llegaste aquí, no hubo MEDIUM+)"
-      - snyk version > reports/snyk-version.txt || true
+      - echo "✅ Control SCA (Snyk) finalizado."
+      - snyk version > reports/snyk-version.txt
       - touch SCA_COMPLETED
 
 artifacts:
