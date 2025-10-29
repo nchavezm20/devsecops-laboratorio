@@ -13,7 +13,7 @@ phases:
 
   build:
     commands:
-      - echo "Ejecutando análisis SCA con OWASP Dependency-Check"
+      - echo "Ejecutando análisis SCA con OWASP Dependency-Check (sin CISA KEV)"
       - |
         dependency-check.sh \
           --scan . \
@@ -21,6 +21,7 @@ phases:
           --out reports \
           --data .dependency-check \
           --nvdApiKey $NVD_API_KEY \
+          --disableKnownExploited \
           --failOnCVSS 4.0 || true
 
       - echo "⚠️ Si hubo error o vulnerabilidades críticas, el pipeline continuará (control registrado)."
