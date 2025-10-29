@@ -1,0 +1,50 @@
+version: 0.2
+
+env:
+  variables:
+    IMAGE_REPO_NAME: "devsecops-laboratorio"
+    IMAGE_TAG: "latest"
+    AWS_REGION: "us-east-1"
+
+phases:
+  install:
+    commands:
+      - echo "🔧 Instalando dependencias necesarias..."
+      - yum update -y
+      - yum install -y docker
+      - echo "✅ Dependencias instaladas."
+
+  pre_build:
+    commands:
+      - echo "Iniciando sesión en Amazon ECR..."
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 091512052243.dkr.ecr.$AWS_REGION.amazonaws.com
+
+  build:
+    commands:
+      - echo "Construyendo imagen Docker..."
+      - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG .
+      - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG 091512052243.dkr.ecr.$AWS_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+
+      - echo "Escaneando vulnerabilidades con Trivy (modo alerta)..."
+      - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
+      - ./trivy image --exit-code 0 --severity MEDIUM,HIGH,CRITICAL --format table $IMAGE_REPO_NAME:$IMAGE_TAG > trivy-report.txt || true
+      - cat trivy-report.txt
+
+      - echo "Generando reporte JSON detallado..."
+      - ./trivy image --exit-code 0 --severity HIGH,CRITICAL --format json $IMAGE_REPO_NAME:$IMAGE_TAG > trivy-report.json || true
+
+      - echo "⚠️  Si se detectan vulnerabilidades CRÍTICAS o ALTAS, el pipeline continuará (modo alerta)."
+
+  post_build:
+    commands:
+      - echo "Subiendo imagen a ECR..."
+      - docker push 091512052243.dkr.ecr.$AWS_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
+      - echo "✅ Imagen subida exitosamente."
+      - touch DOCKER_COMPLETED
+
+artifacts:
+  files:
+    - trivy-report.txt
+    - trivy-report.json
+    - DOCKER_COMPLETED
+  discard-paths: no
