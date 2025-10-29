@@ -1,0 +1,19 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      java: corretto17
+    commands:
+      - echo "Instalando sonar-scanner"
+      - curl -sSLo /tmp/sonar.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+      - unzip -q /tmp/sonar.zip -d /tmp
+      - export PATH="/tmp/sonar-scanner-5.0.1.3006-linux/bin:$PATH"
+      - SONAR_TOKEN=$(aws ssm get-parameter --name SONAR_TOKEN --with-decryption --query Parameter.Value --output text)
+  build:
+    commands:
+      - echo "Ejecutando análisis SAST con SonarCloud"
+      - sonar-scanner -Dsonar.login="$SONAR_TOKEN"
+artifacts:
+  files:
+    - .scannerwork/report-task.txt
+  discard-paths: yes
