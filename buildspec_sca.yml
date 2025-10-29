@@ -2,16 +2,18 @@ version: 0.2
 
 phases:
   install:
+    runtime-versions:
+      nodejs: 18
     commands:
-      - echo "Instalando Snyk CLI (desde GitHub oficial)..."
-      - curl -sL https://raw.githubusercontent.com/snyk/snyk/main/install.sh | bash
-      - echo "Obteniendo token SNYK desde Parameter Store"
+      - echo "📦 Instalando Snyk CLI desde NPM..."
+      - npm install -g snyk
+      - echo "🔑 Obteniendo token SNYK desde Parameter Store"
       - export SNYK_TOKEN=$(aws ssm get-parameter --name SNYK_TOKEN --with-decryption --query "Parameter.Value" --output text)
       - snyk auth $SNYK_TOKEN
 
   build:
     commands:
-      - echo "Ejecutando análisis SCA real con Snyk..."
+      - echo "🚀 Ejecutando análisis SCA real con Snyk..."
       - snyk test --severity-threshold=medium || true
       - echo "⚠️ Si se detectan vulnerabilidades, el pipeline continuará (control registrado)."
 
