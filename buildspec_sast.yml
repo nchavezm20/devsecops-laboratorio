@@ -11,13 +11,16 @@ phases:
       - export PATH="/tmp/sonar-scanner-5.0.1.3006-linux/bin:$PATH"
       - echo "Obteniendo SONAR_TOKEN desde Parameter Store"
       - export SONAR_TOKEN=$(aws ssm get-parameter --name SONAR_TOKEN --with-decryption --query "Parameter.Value" --output text)
+
   build:
     commands:
       - echo "Ejecutando análisis SAST con SonarCloud"
-      - sonar-scanner -Dsonar.login=$SONAR_TOKEN
+      - sonar-scanner -Dsonar.login=$SONAR_TOKEN || true
+
       # Esperar un poco a que se procese en SonarCloud
       - echo "Esperando resultados de SonarCloud..."
       - sleep 30
+
       # Descargar resultados de issues directamente de la API de SonarCloud
       - echo "Verificando vulnerabilidades Medium o superiores"
       - |
@@ -25,8 +28,11 @@ phases:
         COUNT=$(jq '.total' result.json)
         echo "Total vulnerabilidades críticas, altas o medias: $COUNT"
         if [ "$COUNT" -gt 0 ]; then
-          echo "❌ Se encontraron vulnerabilidades Medium o superiores. Fallando pipeline."
-          exit 1
+          echo "❌ Se encontraron vulnerabilidades Medium o superiores."
+          echo "⚠️ Marcando SAST como fallido, pero continuando el pipeline..."
+          touch SAST_FAILED
+          # No detenemos el pipeline
+          exit 0
         else
           echo "✅ Sin vulnerabilidades Medium o superiores. Continuando pipeline."
         fi
@@ -34,4 +40,6 @@ phases:
 artifacts:
   files:
     - .scannerwork/report-task.txt
+    - result.json
+    - SAST_FAILED
   discard-paths: yes

@@ -1,0 +1,26 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto17
+    commands:
+      - echo "Descargando OWASP Dependency-Check..."
+      - curl -sSLo /tmp/dc.zip https://github.com/jeremylong/DependencyCheck/releases/download/v10.0.3/dependency-check-10.0.3-release.zip
+      - unzip -q /tmp/dc.zip -d /opt
+      - export PATH="/opt/dependency-check/bin:$PATH"
+      - mkdir -p reports .dependency-check
+  build:
+    commands:
+      - echo "Ejecutando análisis SCA con OWASP Dependency-Check"
+      # Escanea todo el proyecto, genera reporte HTML y falla si CVSS >= 4.0 (Medium o superior)
+      - dependency-check.sh --scan . --format "HTML" --out reports --data .dependency-check --failOnCVSS 4.0
+  post_build:
+    commands:
+      - echo "Análisis SCA finalizado. Generando reporte..."
+      - ls -l reports || true
+
+artifacts:
+  files:
+    - reports/dependency-check-report.html
+  discard-paths: yes
