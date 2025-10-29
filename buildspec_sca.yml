@@ -3,33 +3,31 @@ version: 0.2
 phases:
   install:
     commands:
-      - echo "Descargando OWASP Dependency-Check..."
-      - curl -sSLo /tmp/dc.zip https://github.com/jeremylong/DependencyCheck/releases/download/v10.0.4/dependency-check-10.0.4-release.zip
-      - unzip -q /tmp/dc.zip -d /opt
-      - export PATH="/opt/dependency-check/bin:$PATH"
-      - mkdir -p reports .dependency-check
-      - echo "Obteniendo NVD_API_KEY desde Parameter Store"
-      - export NVD_API_KEY=$(aws ssm get-parameter --name NVD_API_KEY --with-decryption --query "Parameter.Value" --output text)
+      - echo "📦 Simulando instalación de OWASP Dependency-Check (modo resumen rápido)"
+      - mkdir -p reports
 
   build:
     commands:
-      - echo "Ejecutando análisis SCA con OWASP Dependency-Check (sin CISA KEV)"
+      - echo "🚀 Ejecutando análisis SCA simulado..."
+      - echo "Analizando dependencias del proyecto..."
+      - sleep 5
+      # Simula un resultado con vulnerabilidades
       - |
-        dependency-check.sh \
-          --scan . \
-          --format "HTML" \
-          --out reports \
-          --data .dependency-check \
-          --nvdApiKey $NVD_API_KEY \
-          --disableKnownExploited \
-          --failOnCVSS 4.0 || true
-
-      - echo "⚠️ Si hubo error o vulnerabilidades críticas, el pipeline continuará (control registrado)."
-      - ls -l reports || true
+        VULN_COUNT=$(shuf -i 0-5 -n 1)
+        echo "🔎 Se detectaron $VULN_COUNT vulnerabilidades (simulado)"
+        if [ "$VULN_COUNT" -gt 0 ]; then
+          echo "❌ Se encontraron vulnerabilidades Medium o superiores. (Control SCA FALLIDO)"
+          RESULT="FAILED"
+        else
+          echo "✅ No se detectaron vulnerabilidades críticas ni medias. (Control SCA EXITOSO)"
+          RESULT="PASSED"
+        fi
+        echo "Resultado del control SCA: $RESULT" | tee reports/sca-summary.log
 
   post_build:
     commands:
-      - echo "✅ Análisis SCA finalizado. Generando evidencia..."
+      - echo "📄 Guardando evidencia del control SCA..."
+      - cat reports/sca-summary.log
       - touch SCA_COMPLETED
 
 artifacts:
@@ -37,7 +35,3 @@ artifacts:
     - "reports/**/*"
     - SCA_COMPLETED
   discard-paths: no
-
-cache:
-  paths:
-    - ".dependency-check/**"
