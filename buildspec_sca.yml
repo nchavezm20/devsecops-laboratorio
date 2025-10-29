@@ -20,6 +20,7 @@ phases:
   post_build:
     commands:
       - echo "✅ Control SCA (Snyk) finalizado."
+      - mkdir -p reports
       - snyk version > reports/snyk-version.txt
       - touch SCA_COMPLETED
 
