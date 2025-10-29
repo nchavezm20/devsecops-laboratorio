@@ -5,27 +5,30 @@ phases:
     runtime-versions:
       nodejs: 18
     commands:
-      - echo "📦 Instalando Snyk CLI desde NPM..."
+      - echo "Instalando Snyk CLI desde NPM..."
       - npm install -g snyk
-      - echo "🔑 Obteniendo token SNYK desde Parameter Store"
+      - echo "Obteniendo token SNYK desde Parameter Store"
       - export SNYK_TOKEN=$(aws ssm get-parameter --name SNYK_TOKEN --with-decryption --query "Parameter.Value" --output text)
       - snyk auth $SNYK_TOKEN
 
   build:
     commands:
-      - echo "🚀 Ejecutando análisis SCA real con Snyk..."
-      - snyk test --severity-threshold=medium || true
+      - echo "Ejecutando análisis SCA real con Snyk..."
+      # Crear carpeta de reportes
+      - mkdir -p reports
+      # Ejecutar Snyk y guardar resultado en archivo
+      - snyk test --severity-threshold=medium | tee reports/snyk-summary.log || true
       - echo "⚠️ Si se detectan vulnerabilidades, el pipeline continuará (control registrado)."
 
   post_build:
     commands:
       - echo "✅ Control SCA (Snyk) finalizado."
-      - mkdir -p reports
       - snyk version > reports/snyk-version.txt
       - touch SCA_COMPLETED
 
 artifacts:
   files:
+    - reports/snyk-summary.log
     - reports/snyk-version.txt
     - SCA_COMPLETED
   discard-paths: no
