@@ -3,35 +3,28 @@ version: 0.2
 phases:
   install:
     commands:
-      - echo "📦 Simulando instalación de OWASP Dependency-Check (modo resumen rápido)"
-      - mkdir -p reports
+      - echo "Instalando Snyk CLI..."
+      - curl -sL https://snyk.io/install.sh | bash
+      - echo "Obteniendo token SNYK desde Parameter Store"
+      - export SNYK_TOKEN=$(aws ssm get-parameter --name SNYK_TOKEN --with-decryption --query "Parameter.Value" --output text)
+      - snyk auth $SNYK_TOKEN
 
   build:
     commands:
-      - echo "🚀 Ejecutando análisis SCA simulado..."
-      - echo "Analizando dependencias del proyecto..."
-      - sleep 5
-      # Simula un resultado con vulnerabilidades
-      - |
-        VULN_COUNT=$(shuf -i 0-5 -n 1)
-        echo "🔎 Se detectaron $VULN_COUNT vulnerabilidades (simulado)"
-        if [ "$VULN_COUNT" -gt 0 ]; then
-          echo "❌ Se encontraron vulnerabilidades Medium o superiores. (Control SCA FALLIDO)"
-          RESULT="FAILED"
-        else
-          echo "✅ No se detectaron vulnerabilidades críticas ni medias. (Control SCA EXITOSO)"
-          RESULT="PASSED"
-        fi
-        echo "Resultado del control SCA: $RESULT" | tee reports/sca-summary.log
+      - echo "Ejecutando análisis SCA real con Snyk..."
+      # Ejecuta el escaneo y muestra solo vulnerabilidades de severidad media o superior
+      - snyk test --severity-threshold=medium || true
+      - echo "⚠️ Si se detectan vulnerabilidades, el pipeline continuará (control registrado)."
 
   post_build:
     commands:
-      - echo "📄 Guardando evidencia del control SCA..."
-      - cat reports/sca-summary.log
+      - echo "✅ Control SCA (Snyk) finalizado."
+      - snyk version > reports/snyk-version.txt
+      - echo "Resultado registrado en logs de CodeBuild."
       - touch SCA_COMPLETED
 
 artifacts:
   files:
-    - "reports/**/*"
+    - reports/snyk-version.txt
     - SCA_COMPLETED
   discard-paths: no
