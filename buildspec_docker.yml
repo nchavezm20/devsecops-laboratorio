@@ -8,57 +8,56 @@ env:
 
 phases:
   install:
-    runtime-versions:
-      docker: 20
     commands:
-      - echo "Instalando dependencias necesarias..."
-      - yum install -y docker
-      - echo "Dependencias instaladas."
+      - echo "🔧 Instalando dependencias necesarias..."
+      - yum update -y
+      - yum install -y docker jq curl
+      - echo "✅ Dependencias instaladas."
 
   pre_build:
     commands:
-      - echo "Iniciando sesión en Amazon ECR..."
+      - echo "🔐 Iniciando sesión en Amazon ECR..."
       - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 091512052243.dkr.ecr.$AWS_REGION.amazonaws.com
 
   build:
     commands:
-      - echo "Construyendo imagen Docker..."
+      - echo "🧱 Construyendo imagen Docker..."
       - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG .
       - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG 091512052243.dkr.ecr.$AWS_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
 
-      - echo "Instalando Trivy para escaneo de vulnerabilidades..."
-      - mkdir -p bin
-      - curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
-      - chmod +x ./bin/trivy
-      - export PATH=$PATH:$(pwd)/bin
+      - echo "🔍 Instalando Trivy correctamente..."
+      - mkdir -p /usr/local/bin
+      - curl -sL https://github.com/aquasecurity/trivy/releases/latest/download/trivy_Linux-64bit.tar.gz -o trivy.tar.gz
+      - tar zxvf trivy.tar.gz
+      - mv trivy /usr/local/bin/
+      - chmod +x /usr/local/bin/trivy
+      - trivy --version
 
-      - echo "Ejecutando escaneo con Trivy..."
-      # Escaneo con salida tabular
-      - ./bin/trivy image --exit-code 0 --severity MEDIUM,HIGH,CRITICAL --format table $IMAGE_REPO_NAME:$IMAGE_TAG > trivy-report.txt
-      # Escaneo con salida JSON para conteo
-      - ./bin/trivy image --exit-code 0 --severity MEDIUM,HIGH,CRITICAL --format json $IMAGE_REPO_NAME:$IMAGE_TAG > trivy-report.json
+      - echo "🚀 Ejecutando escaneo con Trivy..."
+      - trivy image --exit-code 0 --severity MEDIUM,HIGH,CRITICAL --format table $IMAGE_REPO_NAME:$IMAGE_TAG > trivy-report.txt
+      - trivy image --exit-code 0 --severity MEDIUM,HIGH,CRITICAL --format json $IMAGE_REPO_NAME:$IMAGE_TAG > trivy-report.json
 
-      - echo "Analizando resultados del escaneo..."
+      - echo "📊 Analizando resultados..."
       - |
         CRITICAL=$(jq '[.Results[].Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' trivy-report.json)
         HIGH=$(jq '[.Results[].Vulnerabilities[]? | select(.Severity=="HIGH")] | length' trivy-report.json)
         MEDIUM=$(jq '[.Results[].Vulnerabilities[]? | select(.Severity=="MEDIUM")] | length' trivy-report.json)
         TOTAL=$((CRITICAL + HIGH + MEDIUM))
-        echo "Resumen de vulnerabilidades:"
+        echo "Resumen de vulnerabilidades detectadas:"
         echo "  CRITICAL: $CRITICAL"
         echo "  HIGH: $HIGH"
         echo "  MEDIUM: $MEDIUM"
         echo "  TOTAL: $TOTAL"
         if [ "$TOTAL" -gt 0 ]; then
-          echo "❌ Se detectaron vulnerabilidades MEDIUM o superiores. Fallando pipeline."
+          echo "❌ Vulnerabilidades MEDIUM+ detectadas. Fallando pipeline."
           exit 1
         else
-          echo "✅ No se detectaron vulnerabilidades MEDIUM, HIGH ni CRITICAL."
+          echo "✅ Imagen sin vulnerabilidades MEDIUM, HIGH ni CRITICAL."
         fi
 
   post_build:
     commands:
-      - echo "Subiendo imagen segura a ECR..."
+      - echo "📦 Subiendo imagen a Amazon ECR..."
       - docker push 091512052243.dkr.ecr.$AWS_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
       - echo "✅ Imagen subida exitosamente."
       - touch DOCKER_COMPLETED
